@@ -9,6 +9,8 @@ output: html_document
 # CHANGEMENT TEST
 # TITRE ENCORE NOUVEAU
 
+# Coucou c'est Tom
+
 ## EXERCICE 0 : INITIALISATION DU PROJET
 
 ### ETAPE 1 : Installation des packages nécessaires

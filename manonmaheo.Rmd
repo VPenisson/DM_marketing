@@ -65,6 +65,11 @@ annee      = 2016
 
 L'objectif est de construire deux tables : une table de travail agrégée des individus à l'aide de R_INDIVIDUS_2016 et R_COMPLEMENT_INDIVIDU_2016 et une autre table agrégée des tickets à l'aide des tables R_TICKETS_2016, R_TYPO_PRODUIT, R_MAGAGIN et R_REFERENTIEL.
 
+<<<<<<< HEAD
+=======
+Manonfdneijoskdksdjroejgoorepvoj brf
+
+>>>>>>> a850d02989293bee3a3fa094f372de1fb45de8a9
 
 fbvslinb^sztionbôbnztpibnz
 dfviopzrnhrzbn

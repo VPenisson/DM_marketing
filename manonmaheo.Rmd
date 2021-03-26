@@ -9,7 +9,7 @@ output: html_document
 # CHANGEMENT TEST
 # TITRE ENCORE NOUVEAU
 
-# Coucou c'est Tom
+# Coucou c'est Valentin
 
 ## EXERCICE 0 : INITIALISATION DU PROJET
 

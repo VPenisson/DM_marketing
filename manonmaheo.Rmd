@@ -9,11 +9,7 @@ output: html_document
 # CHANGEMENT TEST
 # TITRE ENCORE NOUVEAU
 
-<<<<<<< HEAD
-# Coucou c'est Valentin
-=======
-# Coucou c'est Manon
->>>>>>> 2249ea4df1f4f3403cc582b1c6bfcb34e533baeb
+
 
 ## EXERCICE 0 : INITIALISATION DU PROJET
 
@@ -68,6 +64,14 @@ annee      = 2016
 ## EXERCICE 1 : CONSTRUCTION DE LA TABLE PERMETTANT L'ANALYSE DES TICKETS ET DES CLIENTS
 
 L'objectif est de construire deux tables : une table de travail agrégée des individus à l'aide de R_INDIVIDUS_2016 et R_COMPLEMENT_INDIVIDU_2016 et une autre table agrégée des tickets à l'aide des tables R_TICKETS_2016, R_TYPO_PRODUIT, R_MAGAGIN et R_REFERENTIEL.
+
+
+
+
+fbvslinb^sztionbôbnztpibnz
+dfviopzrnhrzbn
+rbopzbnn
+^roibrnhtn,zibn
 
 ### ETAPE 1 : Construction de la table au niveau des Individus
 

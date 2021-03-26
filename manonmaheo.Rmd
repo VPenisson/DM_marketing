@@ -66,8 +66,6 @@ annee      = 2016
 L'objectif est de construire deux tables : une table de travail agrégée des individus à l'aide de R_INDIVIDUS_2016 et R_COMPLEMENT_INDIVIDU_2016 et une autre table agrégée des tickets à l'aide des tables R_TICKETS_2016, R_TYPO_PRODUIT, R_MAGAGIN et R_REFERENTIEL.
 
 
-
-
 fbvslinb^sztionbôbnztpibnz
 dfviopzrnhrzbn
 rbopzbnn
@@ -97,6 +95,11 @@ summarise(R_INDIVIDU,sortie=min(as.Date(as.Date(DATE_CREATION_CARTE, "%d/%m/%Y")
 summarise(R_INDIVIDU,sortie=max(as.Date(as.Date(DATE_CREATION_CARTE, "%d/%m/%Y"))))
 #il faudra filter plus tard pour conserver uniquement les clients utiles pour l'analyse (2014-09-01 à 2016-08-31)
 ```
+
+
+qdfvqsvgzevouiybvgarb
+sgboirzhopbtz
+
 
 ### ETAPE 2 : Calcul de l'âge et l'ancienneté sur la table "Individus"
 

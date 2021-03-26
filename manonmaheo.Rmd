@@ -1,0 +1,413 @@
+---
+title: "PROJET DATAMINING : ANALYSE DES COMPORTEMENTS ET DES LEVIERS OPERATIONNELS"
+author: "Manon MAHEO"
+date: "2/5/2021"
+output: html_document
+---
+
+# SEGMENTATION RFM DE LA CLIENTELE DE LA MARQUE "REINE DES MARACAS"
+
+## EXERCICE 0 : INITIALISATION DU PROJET
+
+### ETAPE 1 : Installation des packages nécessaires
+
+```{r, message = FALSE}
+library(dplyr)
+library(readr)
+library(data.table)
+```
+
+### ETAPE 2 : Importation des fichiers de données csv
+
+```{r, message = FALSE}
+R_COMPLEMENT_INDIVIDU_2016 <- read.csv2("data/R_COMPLEMENT_INDIVIDU_2016.csv") 
+head(R_COMPLEMENT_INDIVIDU_2016)
+```
+
+```{r, message = FALSE}
+R_INDIVIDU_2016 <- fread("data/R_INDIVIDU_2016.csv", sep=";", header=TRUE, stringsAsFactors=FALSE) 
+head(R_INDIVIDU_2016)
+```
+
+```{r, message = FALSE}
+R_MAGASIN <- fread("data/R_MAGASIN.csv", sep=";", header=TRUE, stringsAsFactors=FALSE) 
+head(R_MAGASIN)
+```
+
+```{r, message = FALSE}
+R_REFERENTIEL <- fread("data/R_REFERENTIEL.csv", sep=";", header=TRUE, stringsAsFactors=FALSE)
+head(R_REFERENTIEL)
+```
+
+```{r, message = FALSE}
+R_TICKETS_2016 <- fread("data/R_TICKETS_2016.csv", sep=";", header=TRUE, stringsAsFactors=FALSE) 
+head(R_TICKETS_2016)
+```
+
+```{r, message = FALSE}
+R_TYPO_PRODUIT <- fread("data/R_TYPO_PRODUIT.csv", sep=";", header=TRUE, stringsAsFactors=FALSE) 
+head(R_TYPO_PRODUIT)
+```
+
+### ETAPE 3 : Paramètres permettant de définir le périmètre de l'étude
+
+```{r}
+Date_debut = as.Date("2014-09-01")
+Date_fin   = as.Date("2016-08-31")
+annee      = 2016 
+```
+
+## EXERCICE 1 : CONSTRUCTION DE LA TABLE PERMETTANT L'ANALYSE DES TICKETS ET DES CLIENTS
+
+L'objectif est de construire deux tables : une table de travail agrégée des individus à l'aide de R_INDIVIDUS_2016 et R_COMPLEMENT_INDIVIDU_2016 et une autre table agrégée des tickets à l'aide des tables R_TICKETS_2016, R_TYPO_PRODUIT, R_MAGAGIN et R_REFERENTIEL.
+
+### ETAPE 1 : Construction de la table au niveau des Individus
+
+```{r}
+R_INDIVIDU <- left_join(
+  #Supprimer la variable ID_FOYER de la table individu
+  select(R_INDIVIDU_2016,-ID_FOYER)
+  #Sélectionner uniquement ID_INDIVIDU et CODE_MAGASIN
+  ,select(R_COMPLEMENT_INDIVIDU_2016,ID_INDIVIDU,CODE_MAGASIN)
+  #Variable de jointure
+  ,by = "ID_INDIVIDU")
+
+head(R_INDIVIDU)
+```
+
+```{r}
+#Renommer CODE_MAGASIN en MAGASIN_GESTIONNAIRE
+R_INDIVIDU = rename(R_INDIVIDU, MAGASIN_GESTIONNAIRE=CODE_MAGASIN)
+```
+
+```{r}
+summarise(R_INDIVIDU,sortie=min(as.Date(as.Date(DATE_CREATION_CARTE, "%d/%m/%Y"))))
+summarise(R_INDIVIDU,sortie=max(as.Date(as.Date(DATE_CREATION_CARTE, "%d/%m/%Y"))))
+#il faudra filter plus tard pour conserver uniquement les clients utiles pour l'analyse (2014-09-01 à 2016-08-31)
+```
+
+### ETAPE 2 : Calcul de l'âge et l'ancienneté sur la table "Individus"
+
+On calcule l'âge du client à la fin de la période d'extraction des données. Puis on fait le même travail pour l'ancienneté, calculée en mois.
+
+```{r}
+#calcul de l'âge sur la table R_INDIVIDU
+r_individu_OK = mutate(R_INDIVIDU, AGE = trunc(as.numeric(
+  (as.Date(Date_fin) - as.Date(paste(DATE_NAISS_J,"/",DATE_NAISS_M,"/",DATE_NAISS_A, sep=""), format="%d/%m/%Y"))/365.25)))
+```
+
+```{r}
+#calcul de l'ancienneté en mois
+r_individu_OK=mutate(r_individu_OK,ANCIENNETE = floor(as.numeric((as.Date(Date_fin)
+                                                     -as.Date(DATE_CREATION_CARTE, format="%d/%m/%Y"))/30))) 
+```
+
+```{r}
+#gestion des données aberrantes pour l'âge
+r_individu_OK$AGE=ifelse(r_individu_OK$AGE < 15, NA, r_individu_OK$AGE)
+r_individu_OK$AGE=ifelse(r_individu_OK$AGE > 90, NA, r_individu_OK$AGE)
+```
+
+```{r}
+hist(r_individu_OK$AGE, main = "Histogramme concernant l'âge des clients")
+```
+
+```{r}
+#gestion des données aberrantes pour l'ancienneté 
+r_individu_OK$ANCIENNETE=ifelse(r_individu_OK$ANCIENNETE > 130, NA, r_individu_OK$ANCIENNETE)
+```
+
+```{r}
+hist(r_individu_OK$ANCIENNETE, main = "Histogramme pour l'ancienneté")
+```
+
+```{r, message = FALSE}
+summarise_at(r_individu_OK
+             ,vars(AGE,ANCIENNETE)
+             ,funs(min(., na.rm = TRUE),mean(., na.rm = TRUE),max(., na.rm = TRUE)))
+```
+
+```{r}
+rm(R_INDIVIDU) 
+```
+
+### ETAPE 3 : Travail sur la table des tickets, sélection du bon périmètre sur la table tickets
+
+Il faut sélectionner ici seulement 2 ans d'historique sur la table R_TICKETS_2016. 
+La table en output a 215 577 lignes et 12 colonnes.
+
+```{r}
+Tickets_perim <- filter(R_TICKETS_2016,
+                      #Date achat supérieure à date début
+                      Date_debut <= as.Date(DATE_ACHAT, "%d/%m/%Y") &
+                      #Date achat inférieure à date fin
+                      as.Date(DATE_ACHAT, "%d/%m/%Y") <= Date_fin)
+dim(Tickets_perim)
+```
+
+### ETAPE 4 : Enrichissement de la table des tickets
+
+C'est ici que l'on construit la table agrégée des tickets à l'aide des tables R_TICKETS_2016, R_TYPO_PRODUIT, R_MAGAGIN et R_REFERENTIEL.
+
+```{r}
+#jointure avec R_MAGASIN
+Tickets_mag = left_join(Tickets_perim
+                        # Filtre sur les colonnes
+                        ,select(R_MAGASIN,-ID_BOUTIQUE,-VILLE,-CDP,-CONCEP,-MER_TERRE,-QUOTA)
+                        ,by="CODE_BOUTIQUE")
+```
+
+```{r}
+#jointure avec R_REFERENTIEL
+Tickets_mag$EAN = as.character(Tickets_mag$EAN)
+R_REFERENTIEL$EAN = as.character(R_REFERENTIEL$EAN)
+Tickets_mag_ref = left_join(Tickets_mag
+                            , select(R_REFERENTIEL,EAN,MODELE)
+                            , by = "EAN")
+```
+
+```{r}
+#jointure avec R_TYPO_PRODUITS
+r_Matrice_travail = left_join(Tickets_mag_ref
+                              , select(R_TYPO_PRODUIT,MODELE,Ligne,Famille)
+                              , by = "MODELE")
+```
+
+```{r}
+dim(r_Matrice_travail)
+```
+
+```{r}
+rm(Tickets_mag)
+rm(Tickets_mag_ref)
+rm(Tickets_perim)
+
+rm(R_TYPO_PRODUIT)
+rm(R_REFERENTIEL)
+```
+
+## EXERCICE 2 : AUDITER LA TABLE R_MATRICE_TRAVAIL ET R_INDIVIDU_OK
+
+### ETAPE 1 : Analyse de la table r_Matrice_travail
+
+Pour bien comprendre la table initiale, on peut faire : 
+
+```{r}
+temp = filter(r_Matrice_travail, ID_INDIVIDU==174591) #on considère un individu
+temp = arrange(temp, ID_INDIVIDU, as.Date(temp$DATE_ACHAT, "%d/%m/%Y"), NUM_TICKET) #tri de la table
+#une ligne = un article acheté par l'individu
+```
+
+Fréquences sur les principales variables qualitatives :
+
+```{r}
+count(r_Matrice_travail, REGIONS)
+count(r_Matrice_travail, CENTRE_VILLE) #ici Centre Co et Centre Commercial veulent dire la même chose
+count(r_Matrice_travail, TYPE_MAGASIN)
+count(r_Matrice_travail, REGIONS_COMMERCIAL)
+count(r_Matrice_travail, MODELE)
+count(r_Matrice_travail, Ligne)
+count(r_Matrice_travail, Famille)
+#EAN...
+```
+
+```{r}
+summary(r_Matrice_travail$REMISE_VALEUR)
+hist(r_Matrice_travail$REMISE_VALEUR)
+```
+
+```{r}
+temp = filter(r_Matrice_travail, MODELE=='FAVO') #favo qui est favori, prix après remise vaut 0, 0 remise et 100 remise_valeur)
+```
+
+## EXERCICE 3 : CALCULER AVEC LA TABLE MATRICE_TRAVAIL_OK CONTENANT LES MODIFICATIONS PRECEDENTES
+
+### ETAPE 1 : Déterminer la règle permettant d'identifier un ticket d'achat unique = une visite en magasin
+
+Commençons par corriger les tickets gratuits (si le modèle est dans FAVO ou FAVORI alors le PRIX_OK = 0) :
+
+```{r}
+Matrice_travail_OK <- mutate(r_Matrice_travail, prix_OK = ifelse(MODELE %in% c("FAVO","FAVORI"),0, PRIX_AP_REMISE))
+```
+
+Puis on s'occupe de l'incohérence sur le centre-ville :
+
+```{r}
+table(Matrice_travail_OK$CENTRE_VILLE)
+Matrice_travail_OK$CENTRE_VILLE = case_when(Matrice_travail_OK$CENTRE_VILLE == "" ~ "NC",
+                                            Matrice_travail_OK$CENTRE_VILLE %in% c("Centre Co", "Centre Commercial") ~ 
+                                            "CENTRE_COMMERCIAL",
+                                            Matrice_travail_OK$CENTRE_VILLE %in% c("Centre ville") ~"CENTRE_VILLE")
+```
+
+Les colonnes à retenir pour identifier un ticket d'un client : ID_INDIVIDU,CODE_BOUTIQUE,DATE_ACHAT,NUM_TICKET
+
+### ETAPE 2 : Calculer les indicateurs suivants
+
+1. CALCULS PAR VISITE : chiffre d'affaires, nombre de produits, prix moyen par produit
+
+```{r}
+r_Visite <- Matrice_travail_OK %>% group_by(ID_INDIVIDU, CODE_BOUTIQUE, DATE_ACHAT, NUM_TICKET) %>% summarise(NB_PRODUITS = sum(QUANTITE), CA_VISITE = sum(prix_OK))
+```
+
+```{r}
+r_Visite <- mutate(r_Visite, PRIX_MOYEN = CA_VISITE/NB_PRODUITS) 
+```
+
+```{r}
+head(r_Visite)
+```
+
+2. CALCULS PAR INDIVIDU (à paritr de la table précédente) : nombre de visites, chiffres d'affaires moyen, cumulé et nombre de produits moyen
+
+```{r, message = FALSE}
+r_Indicateurs_achats <- r_Visite %>% group_by(ID_INDIVIDU) %>% summarise(MONTANT_CUMULE = sum(CA_VISITE), NB_VISITES = n(), CA_MOY_VISITE = mean(CA_VISITE),  NB_PRDT_MOY_VISITE = mean(NB_PRODUITS))
+```
+
+```{r}
+head(r_Indicateurs_achats)
+```
+
+3. CALCULER PAR INDIVIDU : récence du dernier achat, nombre de magasins différents, lignes de produits différentes, familles de produits différentes, nombre de cadeaux reçus, part des visites dans le magasin gestionnaire
+
+#### Calcul de la récence du dernier achat
+
+```{r, message = FALSE}
+r_Recence <- r_Visite %>% group_by(ID_INDIVIDU) %>% summarise(date_plus_recente = max(as.Date(DATE_ACHAT, "%d/%m/%Y"))) 
+```
+
+```{r}
+r_Recence <- r_Recence %>% mutate(RECENCE = trunc(as.numeric((as.Date(Date_fin)-as.Date(date_plus_recente, format="%d/%m/%Y")))))
+```
+
+```{r}
+r_Recence <- r_Recence %>% select(ID_INDIVIDU, RECENCE)
+```
+
+#### Autres indicateurs 
+
+```{r}
+r_Indicateurs_supplementaires <- Matrice_travail_OK %>% group_by(ID_INDIVIDU) %>% summarise(
+  NB_MAG_DIFF = n_distinct(CODE_BOUTIQUE, na.rm = TRUE),
+  NB_LIGNES_DIFF = n_distinct(Ligne, na.rm = TRUE),
+  NB_FAM_DIFF = n_distinct(Famille, na.rm = TRUE),
+  NB_CADEAUX = sum(ifelse(MODELE %in% c('FAVO', 'FAVORI')|prix_OK == 0,1,0))
+)
+```
+
+#### Calcul de la part des visites dans le magasin gestionnaire
+
+```{r}
+#on crée une variable r_Visite2 augmentée de la variable CODE_MAGASIN
+r_Visite2 <- left_join(r_Visite, select(R_COMPLEMENT_INDIVIDU_2016, ID_INDIVIDU, CODE_MAGASIN), by="ID_INDIVIDU")
+```
+
+```{r}
+#on crée un booléen qui renvoie True si la visite s'est faite dans le magasin gestionnaire
+r_Visite2 <- r_Visite2 %>% mutate(BOOL_MAG_GES = (CODE_BOUTIQUE == CODE_MAGASIN))
+```
+
+```{r}
+#on crée l'indicateur part des visites dans le magasin gestionnaire
+r_Individu3 <- r_Visite2 %>% group_by(ID_INDIVIDU) %>% summarise(PVMG = sum(BOOL_MAG_GES)/n())
+```
+
+#### Matrice finale pour la segmentation RFM
+
+```{r}
+r_Matrice_finale <- left_join(r_Indicateurs_achats, r_Recence, by = "ID_INDIVIDU")
+```
+
+```{r}
+r_Matrice_finale <- left_join(r_Matrice_finale, r_Indicateurs_supplementaires, by = "ID_INDIVIDU")
+```
+
+```{r}
+r_Matrice_finale <- left_join(r_Matrice_finale, r_Individu3, by = "ID_INDIVIDU")
+```
+
+## EXERCICE 4 : CONSTITUTION DE LA RFM
+
+### ETAPE 1 : Construction de la segmentation RFM
+
+Découper les dimensions calculées précédemment sur les percentiles 33/66 (montant, fréquence et récence). Vérifier les seuils. Puis créer les segments, ne pas oublier les segments supplémentaires (les nouveaux, ceux qui ont crée leur carte après et les inactifs avant)
+
+```{r}
+#découpage montant
+groupe = quantile(r_Matrice_finale$MONTANT_CUMULE, probs = c(0:3/3), na.rm = TRUE)
+Resultat_M <- mutate(r_Matrice_finale, MONTANT_CUMUL_TR = cut(MONTANT_CUMULE, 
+                                                           breaks = quantile(MONTANT_CUMULE,probs=c(0:3/3), na.rm = TRUE),
+                                                           labels = 0:2, include.lowest = TRUE))
+```
+
+```{r}
+#validation
+count(Resultat_M, MONTANT_CUMUL_TR)
+```
+
+```{r, message = FALSE}
+Resultat_M %>% group_by(MONTANT_CUMUL_TR) %>% summarise(N = n(), Min = min(MONTANT_CUMULE), Max = max(MONTANT_CUMULE))
+```
+
+```{r}
+#découpage fréquence, on commence par calculer les quantiles
+seuil = quantile(Resultat_M$NB_VISITES, probs = seq(0,1,1/3), na.rm = TRUE)
+seuil[1]=0
+seuil
+```
+
+```{r}
+Resultat_M <- mutate(Resultat_M, FREQUENCE_TR = cut(NB_VISITES, breaks = seuil, labels = 0:2, include.lowest = TRUE))
+```
+
+```{r}
+count(Resultat_M, FREQUENCE_TR)
+```
+
+```{r, message = FALSE}
+Resultat_M %>% group_by(FREQUENCE_TR) %>% summarise(N = n(), Min = min(NB_VISITES), Max = max(NB_VISITES))
+```
+
+Maintenant on crée les segments : 
+
+```{r}
+Resultat_FM = Resultat_M
+Resultat_FM$FM = case_when(Resultat_FM$FREQUENCE_TR == 0 & Resultat_FM$MONTANT_CUMUL_TR == 0 ~ 0,
+                           Resultat_FM$FREQUENCE_TR == 0 & Resultat_FM$MONTANT_CUMUL_TR == 1 ~ 0,
+                           Resultat_FM$FREQUENCE_TR == 0 & Resultat_FM$MONTANT_CUMUL_TR == 2 ~ 1,
+                           Resultat_FM$FREQUENCE_TR == 1 & Resultat_FM$MONTANT_CUMUL_TR == 0 ~ 0,
+                           Resultat_FM$FREQUENCE_TR == 1 & Resultat_FM$MONTANT_CUMUL_TR == 1 ~ 1,
+                           Resultat_FM$FREQUENCE_TR == 1 & Resultat_FM$MONTANT_CUMUL_TR == 2 ~ 2,
+                           Resultat_FM$FREQUENCE_TR == 2 & Resultat_FM$MONTANT_CUMUL_TR == 0 ~ 1,
+                           Resultat_FM$FREQUENCE_TR == 2 & Resultat_FM$MONTANT_CUMUL_TR == 1 ~ 2,
+                           Resultat_FM$FREQUENCE_TR == 2 & Resultat_FM$MONTANT_CUMUL_TR == 2 ~ 2,
+                           TRUE ~ 99 )
+```
+
+```{r}
+#NOUVEAUX
+r_RFM$SEGMENTv2 = ifelse(is.na(r_RFM$ANCIENNETE) == FALSE & r_RFM$ANCIENNETE < 24, "10", r_RFM$SEGMENTv2)
+```
+
+```{r}
+#INACTIFS
+r_RFM$SEGMENTv2 = ifelse(is.na(r_RFM$MONTANT_CUMULE) == TRUE, "11", r_RFM$SEGMENTv2)
+```
+
+```{r}
+#validation 
+table(r_RFM$RECENCE_TR, r_RFM$FM)
+table(r_RFM$SEGMENTv2, useNA = 'ifany')
+```
+
+```{r}
+#écriture des libellés 
+r_RFM$TYPO = case_when(r_RFM$SEGMENTv2 %in% c("8","9") ~ "TRES BONS",
+                       r_RFM$SEGMENTv2 %in% c("5","6") ~ "BONS",
+                       r_RFM$SEGMENTv2 %in% c("4","7") ~ "PERTES",
+                       r_RFM$SEGMENTv2 %in% c("2","3") ~ "PETITS",
+                       r_RFM$SEGMENTv2 %in% c("1") ~ "FAIBLES",
+                       r_RFM$SEGMENTv2 %in% c("10") ~ "NOUVEAUX",
+                       r_RFM$SEGMENTv2 %in% c("11") ~ "INACTIFS")
+```
+

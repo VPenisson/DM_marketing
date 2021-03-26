@@ -9,7 +9,11 @@ output: html_document
 # CHANGEMENT TEST
 # TITRE ENCORE NOUVEAU
 
+<<<<<<< HEAD
 # Coucou c'est Valentin
+=======
+# Coucou c'est Manon
+>>>>>>> 2249ea4df1f4f3403cc582b1c6bfcb34e533baeb
 
 ## EXERCICE 0 : INITIALISATION DU PROJET
 

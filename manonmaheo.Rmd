@@ -6,10 +6,6 @@ output: html_document
 ---
 
 # SEGMENTATION RFM DE LA CLIENTELE DE LA MARQUE "REINE DES MARACAS"
-# CHANGEMENT TEST
-# TITRE ENCORE NOUVEAU
-
-
 
 ## EXERCICE 0 : INITIALISATION DU PROJET
 
@@ -65,17 +61,6 @@ annee      = 2016
 
 L'objectif est de construire deux tables : une table de travail agrégée des individus à l'aide de R_INDIVIDUS_2016 et R_COMPLEMENT_INDIVIDU_2016 et une autre table agrégée des tickets à l'aide des tables R_TICKETS_2016, R_TYPO_PRODUIT, R_MAGAGIN et R_REFERENTIEL.
 
-<<<<<<< HEAD
-=======
-Manonfdneijoskdksdjroejgoorepvoj brf
-
->>>>>>> a850d02989293bee3a3fa094f372de1fb45de8a9
-
-fbvslinb^sztionbôbnztpibnz
-dfviopzrnhrzbn
-rbopzbnn
-^roibrnhtn,zibn
-
 ### ETAPE 1 : Construction de la table au niveau des Individus
 
 ```{r}
@@ -100,11 +85,6 @@ summarise(R_INDIVIDU,sortie=min(as.Date(as.Date(DATE_CREATION_CARTE, "%d/%m/%Y")
 summarise(R_INDIVIDU,sortie=max(as.Date(as.Date(DATE_CREATION_CARTE, "%d/%m/%Y"))))
 #il faudra filter plus tard pour conserver uniquement les clients utiles pour l'analyse (2014-09-01 à 2016-08-31)
 ```
-
-
-qdfvqsvgzevouiybvgarb
-sgboirzhopbtz
-
 
 ### ETAPE 2 : Calcul de l'âge et l'ancienneté sur la table "Individus"
 
@@ -405,8 +385,42 @@ Resultat_FM$FM = case_when(Resultat_FM$FREQUENCE_TR == 0 & Resultat_FM$MONTANT_C
 ```
 
 ```{r}
+r_RFM = mutate(Resultat_FM, RECENCE_TR = cut(RECENCE,
+                                             breaks = quantile(RECENCE, probs=c(0:3)/3, na.rm = TRUE), labels=0:2, include.lowest = TRUE))
+```
+
+```{r}
+#validation 
+count(r_RFM, RECENCE_TR)
+```
+
+```{r}
+r_RFM %>% group_by(RECENCE_TR) %>% summarise(N=n(), Min= min(RECENCE), Max = max(RECENCE))
+```
+
+```{r}
+names(r_RFM)
+```
+
+```{r}
+r_RFM$SEGMENTv2 <- case_when(r_RFM$RECENCE_TR == 0 & r_RFM$FM == 2 ~ "9",
+                             r_RFM$RECENCE_TR == 1 & r_RFM$FM == 2 ~ "8",
+                             r_RFM$RECENCE_TR == 2 & r_RFM$FM == 2 ~ "7",
+                             r_RFM$RECENCE_TR == 0 & r_RFM$FM == 1 ~ "6",
+                             r_RFM$RECENCE_TR == 1 & r_RFM$FM == 1 ~ "5",
+                             r_RFM$RECENCE_TR == 2 & r_RFM$FM == 1 ~ "4",
+                             r_RFM$RECENCE_TR == 0 & r_RFM$FM == 0 ~ "3",
+                             r_RFM$RECENCE_TR == 1 & r_RFM$FM == 0 ~ "2",
+                             r_RFM$RECENCE_TR == 2 & r_RFM$FM == 0 ~ "1")
+```
+
+```{r}
+r_RFM <- r_RFM %>% left_join(select(r_individu_OK, ID_INDIVIDU, ANCIENNETE), by="ID_INDIVIDU")
+```
+
+```{r}
 #NOUVEAUX
-r_RFM$SEGMENTv2 = ifelse(is.na(r_RFM$ANCIENNETE) == FALSE & r_RFM$ANCIENNETE < 24, "10", r_RFM$SEGMENTv2)
+r_RFM$SEGMENTv2 <- ifelse(is.na(r_RFM$ANCIENNETE) == FALSE & r_RFM$ANCIENNETE < 24, "10", r_RFM$SEGMENTv2)
 ```
 
 ```{r}
@@ -418,6 +432,10 @@ r_RFM$SEGMENTv2 = ifelse(is.na(r_RFM$MONTANT_CUMULE) == TRUE, "11", r_RFM$SEGMEN
 #validation 
 table(r_RFM$RECENCE_TR, r_RFM$FM)
 table(r_RFM$SEGMENTv2, useNA = 'ifany')
+```
+
+```{r}
+ggplot(r_RFM) + aes(x= TYPO) + geom_bar()
 ```
 
 ```{r}

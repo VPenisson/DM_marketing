@@ -1,6 +1,6 @@
 ---
 title: "PROJET DATAMINING : ANALYSE DES COMPORTEMENTS ET DES LEVIERS OPERATIONNELS"
-author: "Manon MAHEO"
+author: "Manon MAHEO - Valentin PENISSOn"
 date: "2/5/2021"
 output: html_document
 ---
@@ -12,9 +12,10 @@ output: html_document
 ### ETAPE 1 : Installation des packages nécessaires
 
 ```{r, message = FALSE}
-library(dplyr)
+library(tidyverse)
 library(readr)
 library(data.table)
+library(openxlsx)
 ```
 
 ### ETAPE 2 : Importation des fichiers de données csv
@@ -100,6 +101,7 @@ r_individu_OK = mutate(R_INDIVIDU, AGE = trunc(as.numeric(
 #calcul de l'ancienneté en mois
 r_individu_OK=mutate(r_individu_OK,ANCIENNETE = floor(as.numeric((as.Date(Date_fin)
                                                      -as.Date(DATE_CREATION_CARTE, format="%d/%m/%Y"))/30))) 
+         
 ```
 
 ```{r}
@@ -430,12 +432,12 @@ r_RFM$SEGMENTv2 = ifelse(is.na(r_RFM$MONTANT_CUMULE) == TRUE, "11", r_RFM$SEGMEN
 
 ```{r}
 #validation 
-table(r_RFM$RECENCE_TR, r_RFM$FM)
+sum(table(r_RFM$RECENCE_TR, r_RFM$FM))
 table(r_RFM$SEGMENTv2, useNA = 'ifany')
 ```
 
 ```{r}
-ggplot(r_RFM) + aes(x= TYPO) + geom_bar()
+#ggplot(r_RFM) + aes(x= TYPO) + geom_bar()
 ```
 
 ```{r}
@@ -447,5 +449,21 @@ r_RFM$TYPO = case_when(r_RFM$SEGMENTv2 %in% c("8","9") ~ "TRES BONS",
                        r_RFM$SEGMENTv2 %in% c("1") ~ "FAIBLES",
                        r_RFM$SEGMENTv2 %in% c("10") ~ "NOUVEAUX",
                        r_RFM$SEGMENTv2 %in% c("11") ~ "INACTIFS")
+table(r_RFM$TYPO, mean(r_RFM$RECENCE))
+#write.xlsx(r_RFM, "R_RFM2.xlsx")
+```
+
+
+Jointure entre r_RFM et r_individu_OK afin d'avoir tous les aggrégats à notre disposition pour analyser un segment :
+```{r}
+r_RFM <- r_RFM %>%
+  left_join(select(r_individu_OK, ID_INDIVIDU, SEXE, AGE), by = 'ID_INDIVIDU')
+```
+
+Sélection  du segment à analyser
+```{r}
+r_RFM_segment <- r_RFM %>%
+  filter(TYPO == 'FAIBLES')
+summary(r_RFM_segment)
 ```
 

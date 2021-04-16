@@ -16,6 +16,7 @@ library(tidyverse)
 library(readr)
 library(data.table)
 library(openxlsx)
+library(RColorBrewer)
 ```
 
 ### ETAPE 2 : Importation des fichiers de données csv
@@ -427,7 +428,7 @@ r_RFM$SEGMENTv2 <- ifelse(is.na(r_RFM$ANCIENNETE) == FALSE & r_RFM$ANCIENNETE < 
 
 ```{r}
 #INACTIFS
-r_RFM$SEGMENTv2 = ifelse(is.na(r_RFM$MONTANT_CUMULE) == TRUE, "11", r_RFM$SEGMENTv2)
+r_RFM$SEGMENTv2 = ifelse(r_RFM$MONTANT_CUMULE == 0, "11", r_RFM$SEGMENTv2)
 ```
 
 ```{r}
@@ -449,8 +450,8 @@ r_RFM$TYPO = case_when(r_RFM$SEGMENTv2 %in% c("8","9") ~ "TRES BONS",
                        r_RFM$SEGMENTv2 %in% c("1") ~ "FAIBLES",
                        r_RFM$SEGMENTv2 %in% c("10") ~ "NOUVEAUX",
                        r_RFM$SEGMENTv2 %in% c("11") ~ "INACTIFS")
-table(r_RFM$TYPO, mean(r_RFM$RECENCE))
-#write.xlsx(r_RFM, "R_RFM2.xlsx")
+table(r_RFM$TYPO)
+write.xlsx(r_RFM, "R_RFM2.xlsx")
 ```
 
 
@@ -460,10 +461,98 @@ r_RFM <- r_RFM %>%
   left_join(select(r_individu_OK, ID_INDIVIDU, SEXE, AGE), by = 'ID_INDIVIDU')
 ```
 
+
+#Visualisation des résultats de la RFM
+
+L'âge selon le segment
+```{r}
+
+  
+ggplot(r_RFM) + aes(TYPO, AGE) + 
+  geom_boxplot(fill = "#990000") +
+  labs(title="Répartition de l'âge en fonction du type de client",x="", y = "") + 
+  scale_y_continuous(breaks=seq(10,90,10)) +
+  theme(plot.title = element_text(hjust = 0.5, face = 'bold'))
+```
+```{r}
+data_visu_RFM <- r_RFM %>% 
+  group_by(TYPO) %>%
+  summarise(mean_ca = round(mean(MONTANT_CUMULE),2),
+            mean_prod = round(mean(NB_PRDT_MOY_VISITE),1),
+            mean_mag_dif= round(mean(NB_MAG_DIFF),1),
+            mean_lignes_dif = round(mean(NB_LIGNES_DIFF),1),
+            mean_familles_dif = round(mean(NB_FAM_DIFF),1))
+
+ggplot(data_visu_RFM) +
+  aes(x = reorder(TYPO,mean_ca),y= mean_ca) +
+  geom_bar(stat = 'identity', fill = '#990000', width = 0.5) + 
+  geom_text(aes(label=str_c(mean_ca, " €")), vjust=-0.4, color="black", size=3.5)+
+  labs(title="Montant cumulé dépensé durant la période d'étude",x="", y = "") + 
+
+  theme(plot.title = element_text(hjust = 0.5, face = 'bold'),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank())
+
+ggplot(data_visu_RFM) +
+  aes(y = reorder(TYPO,mean_prod),x= mean_prod) +
+  geom_bar(stat = 'identity', fill = '#990000', width = 0.5) + 
+  geom_text(aes(label=mean_prod), hjust=-0.4, color="black", size=3.5)+
+  labs(title="Nombre moyen de produits achetés par visite",x="", y = "") + 
+
+  theme(plot.title = element_text(hjust = 0.5, face = 'bold'),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank())
+
+ggplot(data_visu_RFM) +
+  aes(y = reorder(TYPO,mean_mag_dif),x= mean_mag_dif) +
+  geom_bar(stat = 'identity', fill = '#990000', width = 0.5) + 
+  geom_text(aes(label=mean_mag_dif), hjust=-0.4, color="black", size=3.5)+
+  labs(title="Nombre de magasins visités",x="", y = "") + 
+
+  theme(plot.title = element_text(hjust = 0.5, face = 'bold'),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank())
+
+ggplot(data_visu_RFM) +
+  aes(x = reorder(TYPO,mean_familles_dif),y= mean_familles_dif) +
+  geom_bar(stat = 'identity', fill = '#990000', width = 0.5) + 
+  geom_text(aes(label=mean_familles_dif), vjust=-0.4, color="black", size=3.5)+
+  labs(title="Nombre de familles de produits achetées",x="", y = "") + 
+
+  theme(plot.title = element_text(hjust = 0.5, face = 'bold'),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank())
+
+```
+
+
 Sélection  du segment à analyser
 ```{r}
 r_RFM_segment <- r_RFM %>%
-  filter(TYPO == 'FAIBLES')
+  filter(TYPO == 'PETITS')
 summary(r_RFM_segment)
 ```
 
+
+#CA moyen par visite 
+```{r}
+r_RFM_segment <- mutate(r_RFM_segment,breaks_ca_moy = cut(CA_MOY_VISITE,breaks = c(0,50,100,150,200,250,1000), labels = c("Moins de 50","Entre 50 et 100","Entre 100 et 150","Entre 150 et 200","Entre 200 et 250", "Plus de 250")))
+blank_theme <- theme_minimal()+
+  theme(
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.border = element_blank(),
+  panel.grid=element_blank(),
+  axis.ticks = element_blank(),
+  plot.title=element_text(size=14, face="bold")
+  )
+
+data_segment <- r_RFM_segment %>%
+  group_by(breaks_ca_moy) %>%
+  summarise(effectif = round(n()/980,2)*100)
+
+
+```
+
+#Diversification 
+ sur Excel
